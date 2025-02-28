@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Function Inequality Visualizer</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/mathjs/11.8.0/math.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+  <style>
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 20px;
+      background-color: #f5f7fa;
+      color: #333;
+    }
+    
+    .container {
+      background-color: white;
+      border-radius: 12px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+      padding: 24px;
+      margin-bottom: 24px;
+    }
+    
+    h1 {
+      color: #2c3e50;
+      text-align: center;
+      margin-bottom: 24px;
+    }
+    
+    .input-container {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      margin-bottom: 24px;
+    }
+    
+    label {
+      font-weight: 600;
+      margin-bottom: 6px;
+      color: #2c3e50;
+    }
+    
+    .input-group {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    
+    input[type="text"] {
+      flex: 1;
+      padding: 12px;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      font-size: 16px;
+    }
+    
+    button {
+      background-color: #3498db;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      padding: 12px 20px;
+      font-size: 16px;
+      cursor: pointer;
+      transition: background-color 0.3s;
+    }
+    
+    button:hover {
+      background-color: #2980b9;
+    }
+    
+    .settings-container {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-bottom: 24px;
+    }
+    
+    .setting-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    
+    .results {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      margin-top: 24px;
+    }
+    
+    .result-text {
+      font-size: 18px;
+      padding: 12px;
+      border-radius: 6px;
+      background-color: #f1f8ff;
+      border-left: 4px solid #3498db;
+    }
+    
+    .zeros-container {
+      margin-top: 12px;
+      font-size: 16px;
+    }
+    
+    .canvas-container {
+      width: 100%;
+      height: 400px;
+      margin-top: 24px;
+      position: relative;
+    }
+    
+    footer {
+      text-align: center;
+      margin-top: 40px;
+      color: #7f8c8d;
+      font-size: 14px;
+    }
+    
+    .error {
+      color: #e74c3c;
+      background-color: #ffeaea;
+      padding: 12px;
+      border-radius: 6px;
+      margin-top: 12px;
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Function Inequality Visualizer</h1>
+    
+    <div class="input-container">
+      <label for="function-input">Enter a function with inequality (e.g., "(x-1)+(x+1) < 0"):</label>
+      <div class="input-group">
+        <input type="text" id="function-input" placeholder="(x-1)+(x+1) < 0" value="(x-1)+(x+1) < 0">
+        <button id="visualize-btn">Visualize</button>
+      </div>
+      <div class="error" id="error-message"></div>
+    </div>
+    
+    <div class="settings-container">
+      <div class="setting-group">
+        <label for="x-min">X Min:</label>
+        <input type="number" id="x-min" value="-10" step="1">
+      </div>
+      <div class="setting-group">
+        <label for="x-max">X Max:</label>
+        <input type="number" id="x-max" value="10" step="1">
+      </div>
+      <div class="setting-group">
+        <label for="solution-color">Solution Area Color:</label>
+        <input type="color" id="solution-color" value="#3498db33">
+      </div>
+      <div class="setting-group">
+        <label for="zero-color">Zeros Color:</label>
+        <input type="color" id="zero-color" value="#e74c3c">
+      </div>
+    </div>
+    
+    <div class="canvas-container">
+      <canvas id="function-chart"></canvas>
+    </div>
+    
+    <div class="results">
+      <div class="result-text" id="expression-display"></div>
+      <div class="zeros-container" id="zeros-display"></div>
+      <div class="result-text" id="solution-display"></div>
+    </div>
+  </div>
+  
+  <footer>
+    Created with Chart.js and Math.js | Interactive Function Visualizer
+  </footer>
+
+  <script>
+    // DOM Elements
+    const functionInput = document.getElementById('function-input');
+    const visualizeBtn = document.getElementById('visualize-btn');
+    const expressionDisplay = document.getElementById('expression-display');
+    const zerosDisplay = document.getElementById('zeros-display');
+    const solutionDisplay = document.getElementById('solution-display');
+    const errorMessage = document.getElementById('error-message');
+    const xMinInput = document.getElementById('x-min');
+    const xMaxInput = document.getElementById('x-max');
+    const solutionColorInput = document.getElementById('solution-color');
+    const zeroColorInput = document.getElementById('zero-color');
+    
+    // Chart initialization
+    let functionChart = null;
+    
+    // Parse the function expression and inequality
+    function parseFunction(input) {
+      // Match for < 0, > 0, <= 0, >= 0
+      const inequalityMatch = input.match(/(.*?)\s*([<>]=?)\s*0$/);
+      
+      if (!inequalityMatch) {
+        throw new Error("Invalid format. Function should end with '< 0', '> 0', '<= 0', or '>= 0'");
+      }
+      
+      const expression = inequalityMatch[1];
+      const operator = inequalityMatch[2];
+      
+      return { expression, operator };
+    }
+    
+    // Evaluate the function for a given x value
+    function evaluateFunction(expression, x) {
+      try {
+        const scope = { x };
+        return math.evaluate(expression, scope);
+      } catch (error) {
+        throw new Error(`Error evaluating function: ${error.message}`);
+      }
+    }
+    
+    // Find zeros (roots) of the function
+    function findZeros(expression, xMin, xMax, steps = 1000) {
+      const zeros = [];
+      const step = (xMax - xMin) / steps;
+      
+      let prevY = evaluateFunction(expression, xMin);
+      
+      for (let i = 1; i <= steps; i++) {
+        const x = xMin + i * step;
+        const y = evaluateFunction(expression, x);
+        
+        // If sign changes, there's a zero crossing
+        if (prevY * y <= 0 && prevY !== 0) {
+          // Simple linear interpolation to get a better approximation
+          const zeroX = x - step * (y / (y - prevY));
+          zeros.push({
+            x: parseFloat(zeroX.toFixed(6)),
+            y: 0
+          });
+        }
+        
+        prevY = y;
+      }
+      
+      return zeros;
+    }
+    
+    // Check if a point satisfies the inequality
+    function satisfiesInequality(value, operator) {
+      switch (operator) {
+        case '<': return value < 0;
+        case '>': return value > 0;
+        case '<=': return value <= 0;
+        case '>=': return value >= 0;
+        default: return false;
+      }
+    }
+    
+    // Create interval descriptions from zeros
+    function createIntervals(zeros, expression, operator, xMin, xMax) {
+      const points = [xMin, ...zeros.map(z => z.x), xMax].sort((a, b) => a - b);
+      const intervals = [];
+      
+      for (let i = 0; i < points.length - 1; i++) {
+        const start = points[i];
+        const end = points[i + 1];
+        const midpoint = (start + end) / 2;
+        const value = evaluateFunction(expression, midpoint);
+        const satisfies = satisfiesInequality(value, operator);
+        
+        intervals.push({
+          start,
+          end,
+          satisfies
+        });
+      }
+      
+      return intervals;
+    }
+    
+    // Generate data for Chart.js
+    function generateChartData(expression, operator, xMin, xMax, steps = 500) {
+      const data = [];
+      const step = (xMax - xMin) / steps;
+      
+      for (let i = 0; i <= steps; i++) {
+        const x = xMin + i * step;
+        try {
+          const y = evaluateFunction(expression, x);
+          data.push({ x, y });
+        } catch (error) {
+          // Skip points where evaluation fails
+          continue;
+        }
+      }
+      
+      return data;
+    }
+    
+    // Format solution intervals as text
+    function formatSolutionIntervals(intervals, operator) {
+      const satisfyingIntervals = intervals.filter(interval => interval.satisfies);
+      
+      if (satisfyingIntervals.length === 0) {
+        return `No solution found where the inequality is satisfied.`;
+      }
+      
+      // Format each interval in mathematical notation
+      const intervalTexts = satisfyingIntervals.map(interval => {
+        // Handle edge cases for xMin and xMax
+        const start = interval.start.toFixed(2);
+        const end = interval.end.toFixed(2);
+        return `(${start}, ${end})`;
+      });
+      
+      // Join with union symbols
+      return `Solution: x ∈ ${intervalTexts.join(' ∪ ')}`;
+    }
+    
+    // Format zeros as text
+    function formatZeros(zeros) {
+      if (zeros.length === 0) {
+        return "No zeros found in the specified range.";
+      }
+      
+      const zeroPoints = zeros.map(zero => `x = ${zero.x.toFixed(4)}`).join(', ');
+      return `Function equals zero at: ${zeroPoints}`;
+    }
+    
+    // Render the chart
+    function renderChart(data, zeros, intervals, expression, operator) {
+      const ctx = document.getElementById('function-chart').getContext('2d');
+      
+      // If chart exists, destroy it
+      if (functionChart) {
+        functionChart.destroy();
+      }
+      
+      // Create background areas for intervals
+      const backgroundColors = intervals.map(interval => {
+        return {
+          type: 'box',
+          xMin: interval.start,
+          xMax: interval.end,
+          yMin: -Infinity,
+          yMax: Infinity,
+          backgroundColor: interval.satisfies ? solutionColorInput.value : 'transparent',
+          borderWidth: 0
+        };
+      });
+      
+      // Create the chart
+      functionChart = new Chart(ctx, {
+        type: 'scatter',
+        data: {
+          datasets: [
+            // Main function line
+            {
+              label: 'Function',
+              data: data,
+              showLine: true,
+              borderColor: '#2c3e50',
+              borderWidth: 2,
+              pointRadius: 0,
+              fill: false
+            },
+            // Zero points
+            {
+              label: 'Zeros',
+              data: zeros,
+              backgroundColor: zeroColorInput.value,
+              borderColor: '#fff',
+              borderWidth: 2,
+              pointRadius: 6,
+              pointHoverRadius: 8
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: {
+            x: {
+              type: 'linear',
+              position: 'bottom',
+              grid: {
+                color: '#ddd'
+              }
+            },
+            y: {
+              grid: {
+                color: '#ddd'
+              }
+            }
+          },
+          plugins: {
+            annotation: {
+              annotations: backgroundColors
+            },
+            legend: {
+              labels: {
+                usePointStyle: true
+              }
+            },
+            tooltip: {
+              callbacks: {
+                label: function(context) {
+                  const dataset = context.dataset.label;
+                  const x = context.parsed.x.toFixed(4);
+                  const y = context.parsed.y.toFixed(4);
+                  return `${dataset}: (${x}, ${y})`;
+                }
+              }
+            }
+          }
+        }
+      });
+    }
+    
+    // Main function to visualize
+    function visualizeFunction() {
+      try {
+        errorMessage.style.display = 'none';
+        
+        // Get input values
+        const input = functionInput.value.trim();
+        const xMin = parseFloat(xMinInput.value);
+        const xMax = parseFloat(xMaxInput.value);
+        
+        // Validate range
+        if (xMax <= xMin) {
+          throw new Error("X Max must be greater than X Min");
+        }
+        
+        // Parse function
+        const { expression, operator } = parseFunction(input);
+        
+        // Find zeros
+        const zeros = findZeros(expression, xMin, xMax);
+        
+        // Create intervals
+        const intervals = createIntervals(zeros, expression, operator, xMin, xMax);
+        
+        // Generate chart data
+        const data = generateChartData(expression, operator, xMin, xMax);
+        
+        // Update displays
+        expressionDisplay.textContent = `Function: ${expression} ${operator} 0`;
+        zerosDisplay.innerHTML = formatZeros(zeros);
+        solutionDisplay.textContent = formatSolutionIntervals(intervals, operator);
+        
+        // Render chart
+        renderChart(data, zeros, intervals, expression, operator);
+      } catch (error) {
+        errorMessage.textContent = error.message;
+        errorMessage.style.display = 'block';
+      }
+    }
+    
+    // Event listeners
+    visualizeBtn.addEventListener('click', visualizeFunction);
+    functionInput.addEventListener('keypress', function(e) {
+      if (e.key === 'Enter') {
+        visualizeFunction();
+      }
+    });
+    
+    // Settings change listeners
+    [xMinInput, xMaxInput, solutionColorInput, zeroColorInput].forEach(input => {
+      input.addEventListener('change', visualizeFunction);
+    });
+    
+    // Initial visualization
+    visualizeFunction();
+  </script>
+</body>
+</html>
